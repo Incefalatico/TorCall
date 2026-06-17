@@ -4,6 +4,8 @@ TorCall è un'applicazione desktop moderna, sicura e peer-to-peer per effettuare
 
 Consente agli utenti di chiamarsi in modo anonimo scambiando semplicemente indirizzi `.onion` effimeri.
 
+> 🔐 **Lo scambio dell'indirizzo `.onion` va fatto tramite un canale già cifrato e fidato** (Signal, Session, ecc.), **non** via SMS o email in chiaro. La SAS protegge dal man-in-the-middle attivo, ma condividere l'indirizzo su un canale insicuro espone con chi stai comunicando.
+
 ---
 
 ## 🔒 Caratteristiche di Sicurezza e Design
@@ -209,7 +211,9 @@ $env:TORCALL_CONSTANT_RATE = "0"
 $env:TORCALL_LOG_FILE = "1"
 
 # Richiede la conferma manuale delle parole SAS prima di abilitare l'audio
-# (anti-MITM: nessun audio passa finché entrambi non confermano). Disattivo di default.
+# (anti-MITM: nessun audio passa finché entrambi non confermano).
+# Disattivo di default per comodità, ma CONSIGLIATO attivarlo sempre se
+# la sicurezza è prioritaria rispetto alla comodità.
 $env:TORCALL_REQUIRE_SAS = "1"
 
 # Numero di tentativi automatici di riconnessione lato chiamante se la
@@ -242,3 +246,15 @@ TorCall comunica attraverso un protocollo binario personalizzato leggero. Ogni p
 - **`CALL_END` (0x20)**: Segnale di fine chiamata (riaggancio).
 - **`CALL_END_ACK` (0x21)**: Conferma della fine della chiamata.
 - **`PING` (0x30) / `PONG` (0x31)**: Pacchetti di keep-alive inviati ogni 15 secondi per mantenere attivi i circuiti TCP della rete Tor.
+
+---
+
+## ⚠️ Limitazioni note
+
+Per onestà e trasparenza, ecco i limiti attuali del progetto:
+
+- **Solo Windows**: il percorso del binario Tor è fissato a `tor/tor.exe` e gli script di setup scaricano build native per Windows (Tor Expert Bundle e libopus MSYS2). Su Linux/macOS l'avvio fallisce con `tor.exe not found` finché il binario Tor non viene reso dipendente dalla piattaforma — lavoro non ancora implementato né testato.
+- **Latenza di Tor**: l'instradamento attraverso più relay aggiunge latenza variabile. In buone condizioni di rete la conversazione è fluida, ma su circuiti lenti o congestionati la latenza può rendere la conversazione poco naturale. Il jitter buffer adattivo attenua il problema ma non lo elimina.
+- **Nessun supporto ai pluggable transport**: su reti che bloccano o censurano Tor (DPI, blocco dei relay noti) TorCall non dispone di bridge o pluggable transport (obfs4, Snowflake, ecc.), quindi potrebbe non riuscire ad avviare il circuito.
+- **Finestra di replay dell'handshake**: il nonce di freschezza limita il replay dell'handshake a una finestra di ±120 secondi (tolleranza per lo skew degli orologi), non lo azzera del tutto.
+- **Verifica anti-MITM manuale**: la sicurezza contro il man-in-the-middle attivo dipende dal fatto che gli utenti confrontino davvero a voce la SAS. Se la verifica viene saltata, un MITM attivo non viene rilevato.
