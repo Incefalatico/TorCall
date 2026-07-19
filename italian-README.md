@@ -19,11 +19,14 @@ Consente agli utenti di chiamarsi in modo anonimo scambiando semplicemente indir
   * **Verifica anti-MITM (SAS)**: Lo scambio X25519 effimero protegge dagli intercettatori passivi ma non da un man-in-the-middle attivo che inoltri l'handshake. All'inizio di ogni chiamata l'app mostra una **Short Authentication String** (4 parole) derivata dalle chiavi pubbliche di entrambi i peer: i due interlocutori la confrontano a voce e, se non coincide, la chiamata è compromessa e va chiusa.
 * **Identità persistente e riconoscimento dei contatti**:
   * **Identità a lungo termine Ed25519**: oltre alle chiavi effimere per-chiamata, ogni installazione genera una coppia di chiavi **Ed25519** persistente. A ogni handshake la chiave effimera X25519 viene **firmata** con l'identità a lungo termine, così il peer può verificare che chi controlla l'indirizzo `.onion` controlla anche l'identità riconosciuta.
-  * **Pinning dei contatti (Trust-On-First-Use)**: alla prima chiamata verso un indirizzo l'identità del peer viene **fissata** (pinned). Se in una chiamata successiva l'identità associata a quell'indirizzo cambia, l'app mostra un avviso `⚠ IDENTITÀ CAMBIATA` — esattamente come fa SSH con le host key — segnalando un possibile MITM o una rotazione di identità da verificare.
+  * **Pinning dei contatti (Trust-On-First-Use)**: alla prima chiamata verso un indirizzo l'identità del peer viene **fissata** (pinned). Se in una chiamata successiva l'identità associata a quell'indirizzo cambia, l'app mostra un avviso `IDENTITÀ CAMBIATA` — esattamente come fa SSH con le host key — segnalando un possibile MITM o una rotazione di identità da verificare. Una **firma invalida o contraffatta** genera uno stato separato `FIRMA INVALIDA` e **interrompe la chiamata immediatamente**, impedendo che un handshake artefatto venga accettato in silenzio.
+  * **Indirizzo onion nell'handshake (formato v3)**: il chiamante incorpora il proprio indirizzo `.onion` all'interno del payload dell'handshake firmato (v3: 146 + N byte). Il ricevente usa questo dato per fissare il contatto sotto il vero handle onion anziché sotto l'indirizzo di loopback `127.0.0.1:porta` che il suo socket di ascolto vede. L'indirizzo advertised viene **validato** come onion v3 ben formato (56 caratteri base32 + `.onion`) prima di essere considerato attendibile come chiave TOFU, e lato chiamante l'indirizzo digitato dall'utente ha sempre la precedenza su qualsiasi valore advertised dal peer.
   * **Fingerprint leggibile**: ogni identità è riassunta in un fingerprint esadecimale a gruppi (es. `a1:b2:c3:…`) mostrato in chiamata.
-  * **Rubrica**: i contatti fissati sono consultabili in una rubrica da cui è possibile **rinominarli**, copiarne l'indirizzo per richiamarli, oppure **rimuoverli**. La rimozione cancella ogni indirizzo `.onion` legato alla stessa identità (utile se il contatto ha ruotato indirizzo mantenendo la chiave) ed è protetta da una conferma esplicita.
+  * **Rubrica**: i contatti fissati sono consultabili in una rubrica da cui è possibile **rinominarli**, copiarne l'indirizzo per richiamarli, oppure **rimuoverli**. La rimozione cancella ogni indirizzo `.onion` legato alla stessa identità (utile se il contatto ha ruotato indirizzo mantenendo la chiave) ed è protetta da una conferma esplicita. Le voci legacy `127.0.0.1:porta` lasciate da versioni precedenti vengono eliminate automaticamente all'avvio, preservando eventuali nomi già assegnati.
 * **Protezione dei segreti a riposo (at-rest)**:
   * **Cifratura con passphrase**: l'identità dell'hidden service, l'identità Ed25519 e il database dei contatti sono cifrati su disco con **scrypt** (stretching della passphrase) + **AES-256-GCM** quando è impostata la variabile d'ambiente `TORCALL_PASSPHRASE`. In assenza di passphrase si ricade su archiviazione in chiaro con un warning (per retrocompatibilità), affidandosi ai permessi file del sistema operativo.
+  * **Permessi sui file segreti**: i file contenenti chiavi vengono creati con permessi `0o600` (solo il proprietario può leggere e scrivere), indipendentemente dall'umask del processo, così non sono mai world-readable nemmeno senza passphrase.
+  * **Integrità del vault**: il parametro di costo scrypt `log2(N)` nell'header del vault viene validato e limitato a 22 (≈ 4 GB RAM), impedendo che un vault malformato causi errori di out-of-memory al momento della decifratura.
   * **Igiene della memoria**: le chiavi di sessione e le chiavi private effimere sono tenute in `bytearray` mutabili e **azzerate** a fine chiamata, per ridurre la persistenza dei segreti in memoria.
 * **Resistenza all'analisi del traffico**:
   * **Padding a blocchi**: ogni frame audio cifrato viene imbottito fino a un multiplo di `TRAFFIC_PAD_BLOCK` (256 byte) prima della cifratura, così tutte le dimensioni dei pacchetti collassano su pochi valori fissi. Questo nasconde il segnale a bitrate variabile (VBR) di Opus, che altrimenti rivelerebbe *quando* qualcuno sta parlando anche se il contenuto è cifrato.
@@ -74,7 +77,8 @@ TorCall/
 │   ├── ui/
 │   │   ├── __init__.py
 │   │   ├── main_window.py     # Finestra principale ed emettitore di suoneria
-│   │   ├── call_widget.py     # Interfaccia durante la chiamata (Timer, Mute, Volume)
+│   │   ├── call_widget.py     # Interfaccia durante la chiamata (Timer, Muto, Fine Chiamata)
+│   │   ├── contacts_dialog.py # Dialog rubrica (contatti TOFU)
 │   │   └── styles.py          # Foglio di stile QSS personalizzato
 │   │
 │   └── utils/
@@ -83,11 +87,12 @@ TorCall/
 │       └── logger.py          # Registrazione log su console e file in modo thread-safe
 │
 ├── tests/
-│   ├── test_audio.py          # Test per jitter buffer e codifica/decodifica Opus
-│   ├── test_crypto.py         # Test crypto: ECDH, AES-GCM, at-rest, Ed25519, padding
-│   ├── test_identity.py       # Test identità persistente e pinning contatti (TOFU)
-│   ├── test_logger.py         # Test scrubbing .onion/IP dai log
-│   └── test_protocol.py       # Test serializzazione pacchetti e handshake firmato
+│   ├── test_audio.py                  # Test per jitter buffer e codifica/decodifica Opus
+│   ├── test_call_manager_security.py  # Test di sicurezza: abort su firma invalida, logica pin TOFU
+│   ├── test_crypto.py                 # Test crypto: ECDH, AES-GCM, at-rest, Ed25519, padding
+│   ├── test_identity.py               # Test identità persistente e pinning contatti (TOFU)
+│   ├── test_logger.py                 # Test scrubbing .onion/IP dai log
+│   └── test_protocol.py               # Test serializzazione pacchetti e handshake firmato
 │
 └── scratch/                   # Script di utilità e verifica
     ├── find_tor.py            # Script per trovare le directory di rilascio di Tor
@@ -111,6 +116,12 @@ TorCall/
    - All'inizio della chiamata viene mostrata una Short Authentication String di 4 parole, derivata dalle chiavi pubbliche di entrambi i peer e indipendente dal ruolo, da confrontare a voce per smascherare un man-in-the-middle attivo.
 5. **Serializzazione degli invii sul socket**:
    - Tutti i `sendall` (audio, ping, ACK) passano da un unico helper protetto da lock, evitando che scritture concorrenti da thread diversi interlaccino i byte e corrompano il framing dei pacchetti.
+6. **Firma invalida ora interrompe la chiamata** *(nuovo)*:
+   - `_verify_peer_identity()` in precedenza restituiva la chiave effimera del peer anche quando la firma Ed25519 non veniva verificata, permettendo a un handshake contraffatto o corrotto di proseguire silenziosamente. Ora restituisce `None`, causando l'interruzione immediata della chiamata da parte dei chiamanti (`accept_call`, `_on_outgoing_connected`). Lo stato `invalid_signature` è tenuto distinto dal TOFU `mismatch` (indirizzo noto, chiave diversa) perché hanno implicazioni di sicurezza molto diverse.
+7. **Fix pinning dell'indirizzo onion (handshake v3)** *(nuovo)*:
+   - Le connessioni in arrivo arrivano al socket del ricevente da `127.0.0.1` (Tor inoltra la porta dell'hidden service al loopback), quindi i contatti venivano fissati sotto `127.0.0.1:porta_casuale` invece dell'`.onion` del chiamante. Il chiamante ora incorpora il proprio `.onion` nell'handshake firmato (formato v3), e il ricevente lo usa per fissare il contatto sotto il vero indirizzo. L'indirizzo advertised viene validato come onion v3 ben formato prima di essere considerato attendibile, così un peer malevolo non può iniettare una stringa arbitraria per avvelenare lo store TOFU. Lato chiamante l'indirizzo digitato dall'utente ha sempre la precedenza.
+8. **Fix DoS sull'accept loop del server** *(nuovo)*:
+   - `_handle_connection()` veniva chiamata in modo sincrono nel thread dell'accept, quindi un client che apriva la connessione e non inviava nulla poteva bloccare indefinitamente tutte le chiamate in entrata successive (stile slowloris). Ogni connessione viene ora gestita in un thread daemon dedicato, e sul socket accettato viene impostato un timeout di 30 secondi per limitare la durata dei thread in stallo.
 
 ### Privacy e anonimato
 
@@ -190,12 +201,17 @@ python main.py
 > ```
 
 ### 5. Verifica l'Identità della Chiamata (SAS)
-Appena la chiamata si stabilisce, entrambe le parti vedono una stringa di **4 parole** (Short Authentication String) sotto la voce "Verify aloud". Leggetela a voce a vicenda: se le parole coincidono su entrambi i lati la connessione è autentica end-to-end; se **non** coincidono, qualcuno potrebbe intercettare la chiamata (man-in-the-middle) e conviene riagganciare.
+
+Appena la chiamata si stabilisce, entrambe le parti vedono una stringa di **4 parole** (Short Authentication String) sotto la voce "VERIFY ALOUD". Leggetela a voce a vicenda: se le parole coincidono su entrambi i lati la connessione è autentica end-to-end; se **non** coincidono, qualcuno potrebbe intercettare la chiamata (man-in-the-middle) e conviene riagganciare.
 
 Sotto la SAS l'app mostra anche lo **stato dell'identità** del contatto:
-- `🔑 New contact pinned` — primo contatto con quell'indirizzo, identità appena fissata.
-- `✓ Known contact` — l'identità coincide con quella fissata in precedenza.
-- `⚠ IDENTITÀ CAMBIATA` — l'identità è diversa da quella attesa: possibile MITM o rotazione di chiavi, da verificare prima di fidarsi.
+
+* `New contact pinned · <fingerprint>` — primo contatto con questa identità, ora fissata (TOFU).
+* `Identity verified · <nome o fingerprint>` — l'identità corrisponde alla chiave già fissata in precedenza.
+* `<nome> · known contact, new address` — stessa identità vista da un `.onion` diverso (rotazione indirizzo).
+* `IDENTITY CHANGED · <fingerprint>` — la chiave per questo indirizzo è cambiata: possibile MITM o rotazione intenzionale — verificare prima di fidarsi.
+* `INVALID SIGNATURE · <fingerprint>` — la firma Ed25519 sull'handshake non ha passato la verifica. **La chiamata viene interrotta automaticamente.** Non riprovare senza prima indagare.
+* `No identity presented · peer unverified` — peer legacy senza supporto all'identità; la SAS è l'unica protezione MITM disponibile.
 
 ### 6. Variabili d'Ambiente per Privacy (opzionale)
 TorCall funziona senza configurazione, ma alcune variabili d'ambiente rafforzano la privacy:
@@ -239,13 +255,20 @@ TorCall comunica attraverso un protocollo binario personalizzato leggero. Ogni p
 ```
 
 ### Messaggi del Protocollo
-- **`CALL_REQUEST` (0x01)**: Inizio handshake. Il payload è un *handshake firmato*. Nel formato corrente (v2, **144 byte**): chiave pubblica X25519 effimera (32 byte) + identità pubblica Ed25519 (32 byte) + firma Ed25519 (64 byte) + nonce anti-replay (16 byte). La firma copre nonce + chiave effimera. Sono accettati anche il formato v1 a 128 byte (senza nonce) e quello legacy a 32 byte (sola chiave effimera, senza identità) per retrocompatibilità.
-- **`CALL_ACCEPT` (0x02)**: Risposta positiva alla chiamata. Stesso formato handshake firmato del `CALL_REQUEST`.
-- **`CALL_REJECT` (0x03)**: Rifiuto della chiamata (o segnale di occupato se il ricevente è già in un'altra chiamata).
-- **`AUDIO_DATA` (0x10)**: Pacchetto audio cifrato in tempo reale. Il payload è strutturato come `[Nonce GCM da 12B] + [Testo cifrato AES-GCM]`. Il testo in chiaro cifrato è un frame Opus *imbottito* (prefisso di lunghezza a 2 byte + dati + padding a zero fino a un multiplo di 256 byte) per resistere all'analisi del traffico.
-- **`CALL_END` (0x20)**: Segnale di fine chiamata (riaggancio).
-- **`CALL_END_ACK` (0x21)**: Conferma della fine della chiamata.
-- **`PING` (0x30) / `PONG` (0x31)**: Pacchetti di keep-alive inviati ogni 15 secondi per mantenere attivi i circuiti TCP della rete Tor.
+
+* **`CALL_REQUEST` (0x01)**: Inizio handshake. Il payload è un *handshake firmato* in uno dei quattro formati:
+
+  * **Legacy (32 B)**: sola chiave pubblica X25519 effimera — nessuna identità, accettato per retrocompatibilità.
+  * **v1 (128 B)**: X25519 effimera (32 B) + chiave pubblica identità Ed25519 (32 B) + firma Ed25519 (64 B). Senza nonce; replay possibile.
+  * **v2 (144 B)**: come v1 più un nonce anti-replay di 16 byte (timestamp 8 B + 8 B casuali). La firma copre `nonce ‖ chiave_effimera`.
+  * **v3 (146 + N B)**: come v2 più un campo di lunghezza big-endian a 2 byte e N byte di indirizzo `.onion` UTF-8. Il chiamante incorpora il proprio indirizzo così il ricevente può fissare il contatto sotto il vero handle anziché l'indirizzo di loopback. La firma copre `nonce ‖ chiave_effimera ‖ indirizzo_onion`.
+
+* **`CALL_ACCEPT` (0x02)**: Risposta positiva alla chiamata. Stesso formato handshake firmato del `CALL_REQUEST`.
+* **`CALL_REJECT` (0x03)**: Rifiuto della chiamata (o segnale di occupato se il ricevente è già in un'altra chiamata).
+* **`AUDIO_DATA` (0x10)**: Pacchetto audio cifrato in tempo reale. Il payload è strutturato come `[Nonce GCM da 12B] + [Testo cifrato AES-GCM]`. Il testo in chiaro cifrato è un frame Opus *imbottito* (prefisso di lunghezza a 2 byte + dati + padding a zero fino a un multiplo di 256 byte) per resistere all'analisi del traffico.
+* **`CALL_END` (0x20)**: Segnale di fine chiamata (riaggancio).
+* **`CALL_END_ACK` (0x21)**: Conferma della fine della chiamata.
+* **`PING` (0x30) / `PONG` (0x31)**: Pacchetti di keep-alive inviati ogni 15 secondi per mantenere attivi i circuiti TCP della rete Tor.
 
 ---
 

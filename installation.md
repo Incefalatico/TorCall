@@ -275,3 +275,9 @@ python scratch/download_tor.py
 python scratch/download_opus.py
 python main.py
 ```
+
+
+
+comando per creare un eseguibile standalone con nuitka
+python.exe -m nuitka --standalone --enable-plugin=pyside6 --windows-console-mode=disable --windows-icon-from-ico=TorCall.ico --include-data-files=lib/opus.dll=lib/opus.dll --include-data-files=tor/tor.exe=tor/tor.exe --include-data-files=tor/tor-gencert.exe=tor/tor-gencert.exe --include-data-dir=tor=tor --include-data-dir=data=data --output-dir=build --output-filename=TorCall.exe --company-name="TorCall" --product-name="TorCall" --file-version=0.1.0 --product-version=0.1.0 --assume-yes-for-downloads main.py
+

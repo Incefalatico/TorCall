@@ -3,5 +3,5 @@ sounddevice>=0.5.0
 numpy>=1.26.0
 opuslib>=3.0.1
 stem>=1.8.2
-cryptography>=42.0.0
+cryptography>=42.0.0,<46.0.0
 PySocks>=1.7.1
