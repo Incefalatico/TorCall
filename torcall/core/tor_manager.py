@@ -243,6 +243,10 @@ class _TorWorker(QObject):
                 )
                 with open(IDENTITY_KEY_FILE, "wb") as fk:
                     fk.write(payload)
+            try:
+                os.chmod(IDENTITY_KEY_FILE, 0o600)
+            except OSError:
+                log.warning("Could not set permissions on %s", IDENTITY_KEY_FILE)
             if self._onion_address:
                 with open(IDENTITY_ADDR_FILE, "w", encoding="utf-8") as fa:
                     fa.write(self._onion_address)

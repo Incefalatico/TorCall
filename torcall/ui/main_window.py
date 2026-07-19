@@ -151,18 +151,12 @@ class _IncomingCallOverlay(QWidget):
         # Card
         self._card = QWidget()
         self._card.setObjectName("incomingCallCard")
-        self._card.setFixedSize(340, 260)
+        self._card.setFixedSize(340, 230)
 
         card_layout = QVBoxLayout(self._card)
         card_layout.setContentsMargins(28, 28, 28, 28)
         card_layout.setSpacing(14)
         card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Icon / emoji
-        icon_label = QLabel("📞")
-        icon_label.setStyleSheet("font-size: 36px; background: transparent;")
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        card_layout.addWidget(icon_label)
 
         # Title
         title = QLabel("Incoming Call")
@@ -183,13 +177,13 @@ class _IncomingCallOverlay(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(16)
 
-        accept_btn = QPushButton("✅ Accept")
+        accept_btn = QPushButton("Accept")
         accept_btn.setObjectName("acceptCallButton")
         accept_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         accept_btn.clicked.connect(self.accepted.emit)
         btn_row.addWidget(accept_btn)
 
-        reject_btn = QPushButton("❌ Reject")
+        reject_btn = QPushButton("Reject")
         reject_btn.setObjectName("rejectCallButton")
         reject_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reject_btn.clicked.connect(self.rejected.emit)
@@ -325,10 +319,6 @@ class MainWindow(QMainWindow):
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
 
-        lock_label = QLabel("🔒")
-        lock_label.setStyleSheet("font-size: 18px; background: transparent;")
-        title_row.addWidget(lock_label)
-
         title_label = QLabel(APP_NAME)
         title_label.setObjectName("titleLabel")
         title_row.addWidget(title_label)
@@ -364,7 +354,7 @@ class MainWindow(QMainWindow):
         root.addSpacing(18)
 
         # 3 ── Your address section ───────────────────────────────────
-        addr_section_label = QLabel("Your Address:")
+        addr_section_label = QLabel("YOUR ADDRESS")
         addr_section_label.setObjectName("sectionLabel")
         root.addWidget(addr_section_label)
         root.addSpacing(4)
@@ -381,19 +371,19 @@ class MainWindow(QMainWindow):
         addr_btn_row = QHBoxLayout()
         addr_btn_row.setSpacing(10)
 
-        self._copy_btn = QPushButton("📋 Copy")
+        self._copy_btn = QPushButton("Copy")
         self._copy_btn.setObjectName("copyButton")
         self._copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._copy_btn.setToolTip("Copy your .onion address to clipboard")
         addr_btn_row.addWidget(self._copy_btn)
 
-        self._generate_btn = QPushButton("🔄 New Address")
+        self._generate_btn = QPushButton("Regenerate")
         self._generate_btn.setObjectName("generateButton")
         self._generate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._generate_btn.setToolTip("Generate a new .onion address")
         addr_btn_row.addWidget(self._generate_btn)
 
-        self._contacts_btn = QPushButton("📇 Contacts")
+        self._contacts_btn = QPushButton("Contacts")
         self._contacts_btn.setObjectName("generateButton")
         self._contacts_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._contacts_btn.setToolTip("Open your address book")
@@ -411,7 +401,7 @@ class MainWindow(QMainWindow):
         root.addSpacing(14)
 
         # 5 ── Call section ───────────────────────────────────────────
-        call_section_label = QLabel("Call Address:")
+        call_section_label = QLabel("REMOTE ADDRESS")
         call_section_label.setObjectName("sectionLabel")
         root.addWidget(call_section_label)
         root.addSpacing(4)
@@ -421,7 +411,7 @@ class MainWindow(QMainWindow):
         root.addWidget(self._call_input)
         root.addSpacing(10)
 
-        self._call_btn = QPushButton("📞  Call")
+        self._call_btn = QPushButton("Call")
         self._call_btn.setObjectName("callButton")
         self._call_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         root.addWidget(self._call_btn)
@@ -583,8 +573,8 @@ class MainWindow(QMainWindow):
             clipboard.setText(address)
             log.info("MainWindow: address copied to clipboard")
             # Brief visual feedback
-            self._copy_btn.setText("✅ Copied!")
-            QTimer.singleShot(1500, lambda: self._copy_btn.setText("📋 Copy"))
+            self._copy_btn.setText("Copied")
+            QTimer.singleShot(1500, lambda: self._copy_btn.setText("Copy"))
 
     # ── Private slots ─────────────────────────────────────────────────
 
@@ -622,7 +612,7 @@ class MainWindow(QMainWindow):
             self._fullscreen_btn.setText("⛶")
         else:
             self.showFullScreen()
-            self._fullscreen_btn.setText("🗗")
+            self._fullscreen_btn.setText("⊠")
 
     def _exit_fullscreen(self) -> None:
         """Leave full screen if currently active (bound to Esc)."""

@@ -44,7 +44,11 @@ from torcall.utils.logger import log
 # ── On-disk helpers ───────────────────────────────────────────────────
 
 def _write_secret(path: str, data: bytes) -> None:
-    """Write *data* to *path*, encrypting at rest when a passphrase is set."""
+    """Write *data* to *path*, encrypting at rest when a passphrase is set.
+
+    The file is always created with mode 0o600 (owner read/write only) so
+    the key material is not world-readable regardless of the process umask.
+    """
     passphrase = get_passphrase()
     if passphrase:
         blob = encrypt_at_rest(passphrase, data)
@@ -57,6 +61,10 @@ def _write_secret(path: str, data: bytes) -> None:
         )
         with open(path, "wb") as fh:
             fh.write(data)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        log.warning("Could not set permissions on %s", os.path.basename(path))
 
 
 def _read_secret(path: str) -> Optional[bytes]:
@@ -167,6 +175,43 @@ class ContactStore:
             _write_secret(CONTACTS_FILE, data)
         except OSError:
             log.exception("Failed to save contacts store")
+
+    def purge_loopback(self) -> int:
+        """Remove stale contacts pinned under a loopback socket address.
+
+        Before the handshake advertised the caller's real ``.onion``, every
+        incoming call was pinned under the ``127.0.0.1:<port>`` address the
+        listening socket saw.  Those entries are unreachable handles (the
+        port is random per connection) and would otherwise linger forever
+        alongside the correct ``.onion`` entry.  Returns how many were
+        removed.
+
+        If a loopback entry carries a name and the same identity is also
+        pinned under a real address, the name is migrated to the surviving
+        sibling so renaming work isn't lost.
+        """
+        def _is_loopback(addr: str) -> bool:
+            return addr.startswith("127.0.0.1") or addr.startswith("::1")
+
+        stale = [addr for addr in self._contacts if _is_loopback(addr)]
+        for addr in stale:
+            entry = self._contacts[addr]
+            key_hex = entry.get("key", "")
+            name = entry.get("name", "")
+            if name and key_hex:
+                # Carry the name over to any non-loopback sibling that lacks one.
+                for other_addr, other in self._contacts.items():
+                    if (
+                        not _is_loopback(other_addr)
+                        and other.get("key") == key_hex
+                        and not other.get("name")
+                    ):
+                        other["name"] = name
+            self._contacts.pop(addr, None)
+        if stale:
+            self._save()
+            log.info("Purged %d stale loopback contact(s)", len(stale))
+        return len(stale)
 
     def check(self, address: str, identity_public: bytes) -> str:
         """Compare *identity_public* against the pinned identity for *address*.

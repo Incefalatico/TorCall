@@ -93,7 +93,16 @@ class _ServerWorker(QObject):
                 break
 
             log.info("Incoming connection from %s", addr)
-            self._handle_connection(client_sock, addr)
+            # Handle each connection in a daemon thread so a slow or stalled
+            # client (slowloris / incomplete header) cannot block the accept
+            # loop and prevent any further incoming calls.
+            t = threading.Thread(
+                target=self._handle_connection,
+                args=(client_sock, addr),
+                daemon=True,
+                name=f"torcall-conn-{addr[1]}",
+            )
+            t.start()
 
         log.info("CallServer accept loop exited")
 
@@ -112,6 +121,11 @@ class _ServerWorker(QObject):
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, TCP_BUFFER_SIZE)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, TCP_BUFFER_SIZE)
+            # Bound how long we wait for the opening packet.  Without this a
+            # stalled client (slowloris / half-open) would block this thread
+            # forever; the accept loop is no longer affected (it runs in a
+            # separate thread now), but we still want to bound the thread pool.
+            sock.settimeout(30.0)
 
             # Read the very first packet
             packet = read_packet_sync(sock)

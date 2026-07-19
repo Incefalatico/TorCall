@@ -78,7 +78,7 @@ class ContactsDialog(QDialog):
         root.setContentsMargins(20, 20, 20, 20)
         root.setSpacing(12)
 
-        title = QLabel("📇  Contacts")
+        title = QLabel("Contacts")
         title.setObjectName("titleLabel")
         root.addWidget(title)
 
@@ -106,25 +106,25 @@ class ContactsDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
-        self._call_btn = QPushButton("📞  Call")
+        self._call_btn = QPushButton("Call")
         self._call_btn.setObjectName("callButton")
         self._call_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._call_btn.clicked.connect(self._on_call)
         btn_row.addWidget(self._call_btn)
 
-        self._rename_btn = QPushButton("✏️  Rename")
+        self._rename_btn = QPushButton("Rename")
         self._rename_btn.setObjectName("generateButton")
         self._rename_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._rename_btn.clicked.connect(self._on_rename)
         btn_row.addWidget(self._rename_btn)
 
-        self._copy_btn = QPushButton("📋  Copy address")
+        self._copy_btn = QPushButton("Copy Address")
         self._copy_btn.setObjectName("copyButton")
         self._copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._copy_btn.clicked.connect(self._on_copy)
         btn_row.addWidget(self._copy_btn)
 
-        self._remove_btn = QPushButton("🗑️  Remove")
+        self._remove_btn = QPushButton("Remove")
         self._remove_btn.setObjectName("hangupButton")
         self._remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._remove_btn.clicked.connect(self._on_remove)
@@ -216,9 +216,9 @@ class ContactsDialog(QDialog):
         if not address:
             return
         QGuiApplication.clipboard().setText(address)
-        self._copy_btn.setText("✅  Copied!")
+        self._copy_btn.setText("Copied")
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(1500, lambda: self._copy_btn.setText("📋  Copy address"))
+        QTimer.singleShot(1500, lambda: self._copy_btn.setText("Copy Address"))
 
     def _on_remove(self) -> None:
         contact = self._selected_contact()

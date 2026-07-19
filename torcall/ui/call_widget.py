@@ -66,7 +66,7 @@ class CallWidget(QWidget):
         root.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Call status indicator
-        self._call_status_label = QLabel("In Call")
+        self._call_status_label = QLabel("IN CALL")
         self._call_status_label.setObjectName("sectionLabel")
         self._call_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._call_status_label)
@@ -84,7 +84,7 @@ class CallWidget(QWidget):
         root.addWidget(self._peer_label)
 
         # Short Authentication String — read aloud to verify no MITM
-        self._sas_caption = QLabel("Verify aloud:")
+        self._sas_caption = QLabel("VERIFY ALOUD")
         self._sas_caption.setObjectName("sasCaption")
         self._sas_caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._sas_caption.setVisible(False)
@@ -104,7 +104,7 @@ class CallWidget(QWidget):
 
         # SAS confirm button — only shown when audio is gated on SAS
         # verification (TORCALL_REQUIRE_SAS).  Until pressed, audio is held.
-        self._sas_confirm_btn = QPushButton("✓ Words match — start audio")
+        self._sas_confirm_btn = QPushButton("✓  Words match — start audio")
         self._sas_confirm_btn.setObjectName("sasConfirmButton")
         self._sas_confirm_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._sas_confirm_btn.setVisible(False)
@@ -132,18 +132,18 @@ class CallWidget(QWidget):
 
         root.addSpacing(16)
 
-        # Buttons row: Mute | Hang Up
+        # Buttons row: Mute | End Call
         btn_row = QHBoxLayout()
         btn_row.setSpacing(16)
 
-        self._mute_btn = QPushButton("🎙️ Mute")
+        self._mute_btn = QPushButton("Mute")
         self._mute_btn.setObjectName("muteButton")
         self._mute_btn.setCheckable(True)
         self._mute_btn.setMinimumWidth(120)
         self._mute_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_row.addWidget(self._mute_btn)
 
-        self._hangup_btn = QPushButton("📞 Hang Up")
+        self._hangup_btn = QPushButton("End Call")
         self._hangup_btn.setObjectName("hangupButton")
         self._hangup_btn.setMinimumWidth(120)
         self._hangup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -199,7 +199,7 @@ class CallWidget(QWidget):
         self._is_muted = muted
         self._mute_btn.blockSignals(True)
         self._mute_btn.setChecked(muted)
-        self._mute_btn.setText("🔇 Unmute" if muted else "🎙️ Mute")
+        self._mute_btn.setText("Unmute" if muted else "Mute")
         self._mute_btn.blockSignals(False)
 
     def update_audio_level(self, level: float) -> None:
@@ -244,7 +244,7 @@ class CallWidget(QWidget):
         if required:
             self._sas_confirm_btn.setVisible(True)
             self._sas_confirm_btn.setEnabled(True)
-            self._sas_confirm_btn.setText("✓ Words match — start audio")
+            self._sas_confirm_btn.setText("✓  Words match — start audio")
         else:
             self._sas_confirm_btn.setVisible(False)
 
@@ -255,24 +255,41 @@ class CallWidget(QWidget):
             info: Dict with ``status``, ``fingerprint``, ``address`` and an
                 optional human-readable ``name``.
         """
+        from torcall.ui.styles import Colors
         status = info.get("status", "")
         fp = info.get("fingerprint", "")
         name = info.get("name", "")
         who = name if name else fp
+
         if status == "match":
-            text = f"✓ Known contact ({who})"
+            text = f"Identity verified  ·  {who}"
+            color = Colors.SUCCESS
         elif status == "new":
-            text = f"🔑 New contact pinned ({fp})"
+            text = f"New contact pinned  ·  {fp}"
+            color = Colors.ACCENT_HOVER
         elif status == "known_new_address":
-            text = f"↪ {who} — known contact, new address"
+            text = f"{who}  ·  known contact, new address"
+            color = Colors.ACCENT_HOVER
         elif status == "mismatch":
-            text = f"⚠ IDENTITY CHANGED ({fp}) — verify before trusting"
+            text = f"IDENTITY CHANGED  ·  {fp}  ·  verify before trusting"
+            color = Colors.WARNING
+        elif status == "invalid_signature":
+            text = f"INVALID SIGNATURE  ·  {fp}  ·  possible MITM — do not trust"
+            color = Colors.DANGER
         elif status == "unsigned":
-            text = "⚠ Peer sent no identity — cannot recognise them"
+            text = "No identity presented  ·  peer unverified"
+            color = Colors.WARNING
         else:
             text = ""
+            color = Colors.TEXT_SECONDARY
+
         log.info("CallWidget: peer identity status=%s", status)
         self._identity_label.setText(text)
+        if text:
+            self._identity_label.setStyleSheet(
+                f"color: {color}; font-family: 'Cascadia Code', 'Consolas', monospace; "
+                f"font-size: 12px; font-weight: 600; padding: 3px 10px;"
+            )
         self._identity_label.setVisible(bool(text))
 
     # ── Private helpers ───────────────────────────────────────────────
@@ -302,7 +319,7 @@ class CallWidget(QWidget):
 
     def _on_mute_toggled(self, checked: bool) -> None:
         self._is_muted = checked
-        self._mute_btn.setText("🔇 Unmute" if checked else "🎙️ Mute")
+        self._mute_btn.setText("Unmute" if checked else "Mute")
         log.info("CallWidget: mute toggled → %s", "muted" if checked else "unmuted")
         self.mute_toggled.emit(checked)
 

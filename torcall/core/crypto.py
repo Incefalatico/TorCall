@@ -561,7 +561,7 @@ def decrypt_at_rest(passphrase: str, blob: bytes) -> bytes:
         if len(blob) < min_len:
             raise ValueError("Not a valid TorCall encrypted blob")
         log2n = blob[4]
-        if not (1 <= log2n <= 31):
+        if not (1 <= log2n <= 22):
             raise ValueError("Invalid scrypt cost in vault header")
         header = blob[:5]
         salt = blob[5 : 5 + _SALT_SIZE]

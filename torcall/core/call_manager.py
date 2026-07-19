@@ -14,6 +14,7 @@ State machine::
 from __future__ import annotations
 
 import queue
+import re
 import socket
 import threading
 import time
@@ -64,6 +65,18 @@ from torcall.utils.config import (
     FRAME_SIZE,
 )
 from torcall.utils.logger import log
+
+
+# A v3 onion address: 56 chars of base32 (a-z, 2-7) followed by ".onion".
+# We validate any peer-advertised address against this before trusting it
+# as a contact-store pin key, so a malicious peer can't inject an arbitrary
+# string (or a third party's address) to poison the TOFU store.
+_ONION_V3_RE = re.compile(r"^[a-z2-7]{56}\.onion$")
+
+
+def is_valid_onion_v3(address: Optional[str]) -> bool:
+    """Return True if *address* is a well-formed v3 ``.onion`` address."""
+    return bool(address) and _ONION_V3_RE.match(address) is not None
 
 
 # ── Call states ──────────────────────────────────────────────────────
@@ -130,6 +143,9 @@ class CallManager(QObject):
         self._identity = Identity()
         self._contacts = ContactStore()
         self._contacts.load()
+        # Drop legacy 127.0.0.1:<port> entries left by the pre-fix pinning
+        # path; the real .onion is now pinned instead (see _verify_peer_identity).
+        self._contacts.purge_loopback()
 
         # Current call state
         self._state = CallState.IDLE
@@ -313,18 +329,38 @@ class CallManager(QObject):
             return ephemeral
 
         if not verify_handshake(identity_pub, ephemeral, signature, nonce, advertised_addr):
-            log.warning("Invalid handshake signature from %s", address)
+            log.warning("Invalid handshake signature from %s — rejecting", address)
             self._pending_peer_identity = {
-                "status": "mismatch",
+                # "invalid_signature" is distinct from the TOFU "mismatch"
+                # (known address, different key).  Here we have a forged or
+                # corrupted signature: continuing would give an attacker-chosen
+                # ephemeral key which they could use to MITM the session.
+                "status": "invalid_signature",
                 "fingerprint": fingerprint(identity_pub),
                 "address": address,
             }
-            return ephemeral
+            return None  # callers abort on None — do NOT let the call proceed
 
-        # Prefer the signed, peer-advertised .onion address for pinning.
-        # The socket address is loopback for incoming calls and would
-        # otherwise be saved as the contact's "address" (the 127.0.0.1 bug).
-        pin_address = advertised_addr or address
+        # Decide which address to pin the identity under.
+        #
+        # *address* is what we already associate with the peer: on the caller
+        # side it is the real ``.onion`` we dialled (and what the user typed),
+        # so it is authoritative — we keep it and ignore whatever the peer
+        # advertises.  On the callee side it is the loopback socket address,
+        # which is useless as a handle, so we fall back to the peer-advertised
+        # ``.onion`` — but only after validating its format, because the peer
+        # signs its own handshake and could otherwise advertise an arbitrary
+        # string (or a third party's address) to poison the TOFU store.
+        if is_valid_onion_v3(address):
+            pin_address = address
+        elif is_valid_onion_v3(advertised_addr):
+            pin_address = advertised_addr
+        else:
+            if advertised_addr:
+                log.warning(
+                    "Ignoring malformed peer-advertised address from %s", address
+                )
+            pin_address = address
 
         status = self._contacts.check(pin_address, identity_pub)
         self._pending_peer_identity = {
