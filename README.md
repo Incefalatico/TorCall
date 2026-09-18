@@ -4,11 +4,11 @@ TorCall is a secure, peer-to-peer desktop application for making encrypted voice
 
 It lets users call each other anonymously by simply exchanging ephemeral `.onion` addresses.
 
-> 🔐 **The `.onion` address must be exchanged over an already-encrypted, trusted channel** (Signal, Session, etc.), **not** via plaintext SMS or email. The SAS protects against an active man-in-the-middle, but sharing the address over an insecure channel exposes who you are communicating with.
+>  **The `.onion` address must be exchanged over an already-encrypted, trusted channel** (Signal, Session, etc.), **not** via plaintext SMS or email. The SAS protects against an active man-in-the-middle, but sharing the address over an insecure channel exposes who you are communicating with.
 
 ---
 
-## 🔒 Security and Design Features
+##  Security and Design Features
 
 * **Anonymity**: All connections are routed through the Tor network. The location and IP address of both caller and callee are hidden using Tor's onion routing.
 * **End-to-End Encryption (E2EE)**:
@@ -45,7 +45,7 @@ It lets users call each other anonymously by simply exchanging ephemeral `.onion
 
 ---
 
-## 🏗️ Project Architecture
+##  Project Architecture
 
 ```
 TorCall/
@@ -102,7 +102,7 @@ TorCall/
 
 ---
 
-## 🛠️ Key Fixes and Improvements
+##  Key Fixes and Improvements
 
 ### Security
 
@@ -158,7 +158,7 @@ TorCall/
 
 ---
 
-## 🚀 Usage Guide
+##  Usage Guide
 
 ### 1. Environment Setup
 Create a Python virtual environment and install the required dependencies:
@@ -239,11 +239,11 @@ $env:TORCALL_RECONNECT_ATTEMPTS = "3"
 python main.py
 ```
 
-> ⚠️ **Important**: without `TORCALL_PASSPHRASE` the secrets are stored in plaintext on disk (with a warning in the logs), relying only on the operating system's file permissions. Set a passphrase to encrypt them at rest.
+>  **Important**: without `TORCALL_PASSPHRASE` the secrets are stored in plaintext on disk (with a warning in the logs), relying only on the operating system's file permissions. Set a passphrase to encrypt them at rest.
 
 ---
 
-## 📋 Signaling Protocol and Data Details
+##  Signaling Protocol and Data Details
 
 TorCall communicates through a lightweight custom binary protocol. Each packet consists of a **fixed 7-byte header** followed by a variable-length payload:
 
@@ -272,7 +272,7 @@ TorCall communicates through a lightweight custom binary protocol. Each packet c
 
 ---
 
-## ⚠️ Known Limitations
+##  Known Limitations
 
 For honesty and transparency, here are the project's current limitations:
 
