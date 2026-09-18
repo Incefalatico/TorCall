@@ -1,6 +1,6 @@
 # TorCall — Encrypted Voice Calls over Tor
 
-TorCall is a modern, secure, peer-to-peer desktop application for making encrypted voice calls through the **Tor** network, built with **Python 3.11**, **PySide6 (Qt)** and **Tor Hidden Services**.
+TorCall is a secure, peer-to-peer desktop application for making encrypted voice calls through the **Tor** network, built with **Python 3.11**, **PySide6 (Qt)** and **Tor Hidden Services**.
 
 It lets users call each other anonymously by simply exchanging ephemeral `.onion` addresses.
 
